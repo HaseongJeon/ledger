@@ -32,7 +32,7 @@ jobs:
           cache: npm
 
       # Capacitor 6 의 Android Gradle Plugin 8.x 는 JDK 17 을 요구합니다.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
