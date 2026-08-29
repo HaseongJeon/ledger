@@ -1,0 +1,8 @@
+# 미리보기/임시 파일
+_preview.html
+.DS_Store
+*.log
+
+# 편집기
+.vscode/
+.idea/
