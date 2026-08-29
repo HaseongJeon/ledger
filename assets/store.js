@@ -17,16 +17,22 @@ export const store = {
 };
 
 /* ── 설정 ── */
+/* 대시보드에서 REST 엔드포인트(…/rest/v1/)를 그대로 복사해 오는 일이 흔해서,
+   프로젝트 주소만 남기고 뒤쪽 경로와 슬래시는 떼어 냅니다. */
+function normUrl(u) {
+  return (u || "").trim().replace(/\/+$/, "").replace(/\/(rest|auth|realtime|storage)\/v1$/, "");
+}
+
 export function readConfig() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS.cfg) || "null"); } catch { /* 무시 */ }
   const base = window.APP_CONFIG || {};
-  const url = (saved?.url || base.SUPABASE_URL || "").trim();
+  const url = normUrl(saved?.url || base.SUPABASE_URL);
   const key = (saved?.key || base.SUPABASE_ANON_KEY || "").trim();
   return { url, key, configured: !!(url && key) };
 }
 export function writeConfig(url, key) {
-  localStorage.setItem(LS.cfg, JSON.stringify({ url: url.trim(), key: key.trim() }));
+  localStorage.setItem(LS.cfg, JSON.stringify({ url: normUrl(url), key: key.trim() }));
 }
 export function clearConfig() { localStorage.removeItem(LS.cfg); }
 

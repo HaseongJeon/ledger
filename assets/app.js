@@ -788,19 +788,19 @@ function renderTax() {
       <button class="ghost" id="t-year" type="button">올해로 보기</button></div>`}
     <div class="stat">
       <h3 class="stat__h">부가가치세</h3>
-      <p class="stat__v stat__v--rose">${C.won(v)}<span style="font-size:15px">원</span></p>
+      <p class="stat__v stat__v--rose">${C.won(v)}<span class="unit">원</span></p>
       <p class="stat__f">(매출 ${C.won(t.price)} − 원가 ${C.won(t.cost)}) × 10%</p>
     </div>
 
     <div class="stat">
-      <h3 class="stat__h">종합소득세 <span style="text-transform:none;letter-spacing:0">(지방소득세 포함)</span></h3>
-      <p class="stat__v stat__v--rose">${C.won(it.total)}<span style="font-size:15px">원</span></p>
+      <h3 class="stat__h">종합소득세 <span class="stat__h-sub">지방소득세 포함</span></h3>
+      <p class="stat__v stat__v--rose">${C.won(it.total)}<span class="unit">원</span></p>
       <div class="rows">
         ${row("사업소득금액", it.businessIncome < 0 ? "매출 − 원가 − 지출 · 결손" : "매출 − 원가 − 지출", C.won(it.businessIncome))}
-        ${row("소득공제", `기본공제 ${C.won(C.BASIC_DEDUCTION)} × ${state.tax.dependents}명`, "−" + C.won(it.deduction))}
+        ${row("소득공제", `기본공제 ${C.won(C.BASIC_DEDUCTION)} × ${state.tax.dependents}명`, (it.deduction ? "−" : "") + C.won(it.deduction))}
         ${row("과세표준", "", C.won(it.base), true)}
         ${row("산출세액", `${(it.rate * 100).toFixed(0)}% − 누진공제 ${C.won(it.progressiveDeduction)}`, C.won(it.gross))}
-        ${row("세액공제", "", "−" + C.won(it.taxCredit))}
+        ${row("세액공제", "", (it.taxCredit ? "−" : "") + C.won(it.taxCredit))}
         ${row("결정세액 (국세)", "", C.won(it.national))}
         ${row("지방소득세", "결정세액 × 10%", C.won(it.local))}
         ${row("납부할 세금", "", C.won(it.total), true)}
@@ -829,6 +829,11 @@ const row = (k, sub, v, em = false) =>
   `<div class="rows__r ${em ? "rows__r--em" : ""}"><span class="rows__k">${esc(k)}${sub ? `<span class="rows__sub">${esc(sub)}</span>` : ""}</span>
    <span class="rows__lead"></span><span class="rows__v">${v}</span></div>`;
 
+/** 값이 금액이 아니라 글자일 때 (설정 화면 등) */
+const rowText = (k, sub, v) =>
+  `<div class="rows__r"><span class="rows__k">${esc(k)}${sub ? `<span class="rows__sub">${esc(sub)}</span>` : ""}</span>
+   <span class="rows__lead"></span><span class="rows__v rows__v--text">${esc(v)}</span></div>`;
+
 /* ── 통합 정리 ── */
 function renderSummary() {
   periodBar("#sum-period");
@@ -839,18 +844,18 @@ function renderSummary() {
   $("#sum-body").innerHTML = `
     ${annualSum ? "" : `<div class="notice">종합소득세가 섞여 있는 표입니다. 1년 기준으로 보려면 <b>올해</b>를 고르세요.</div>`}
     <div class="stat">
-      <h3 class="stat__h">남은 돈 <span style="text-transform:none;letter-spacing:0">매출 − 지출 − 부가세 − 종합소득세</span></h3>
-      <p class="stat__v ${s.remaining < 0 ? "stat__v--rose" : "stat__v--plate"}">${C.won(s.remaining)}<span style="font-size:15px">원</span></p>
+      <h3 class="stat__h">남은 돈 <span class="stat__h-sub">매출 − 지출 − 부가세 − 종합소득세</span></h3>
+      <p class="stat__v ${s.remaining < 0 ? "stat__v--rose" : "stat__v--plate"}">${C.won(s.remaining)}<span class="unit">원</span></p>
       <p class="stat__f">${periodLabel()} · 전표 ${cases.length}건</p>
     </div>
     <div class="stat">
       <div class="rows">
         ${row("매출", `견적가 합 · 미수 ${C.won(s.unpaid)} 포함`, C.won(s.revenue), true)}
-        ${row("원가", "", "−" + C.won(s.cost))}
-        ${row("지출", "정기 지출 포함", "−" + C.won(s.expenseTotal))}
-        ${row("부가세", "(매출 − 원가) × 10%", "−" + C.won(s.vat))}
+        ${row("원가", "", (s.cost ? "−" : "") + C.won(s.cost))}
+        ${row("지출", "정기 지출 포함", (s.expenseTotal ? "−" : "") + C.won(s.expenseTotal))}
+        ${row("부가세", "(매출 − 원가) × 10%", (s.vat ? "−" : "") + C.won(s.vat))}
         ${row("순이익", "매출 − 지출 − 부가세", C.won(s.netProfit), true)}
-        ${row("종합소득세", "지방소득세 포함", "−" + C.won(s.incomeTax.total))}
+        ${row("종합소득세", "지방소득세 포함", (s.incomeTax.total ? "−" : "") + C.won(s.incomeTax.total))}
         ${row("남은 돈", "", C.won(s.remaining), true)}
       </div>
     </div>
@@ -1023,10 +1028,10 @@ function openMenu() {
   openModal({
     title: "설정",
     body: `<div class="rows">
-        ${row("저장 위치", S.store.mode === "cloud" ? "Supabase (두 사람 공유)" : "이 기기 (localStorage)", S.store.mode === "cloud" ? "클라우드" : "로컬")}
-        ${row("계정", S.store.user?.email || "로그인 안 함", "")}
-        ${row("전표", "", `${S.store.cases.length}건`)}
-        ${row("지출", "", `${S.store.expenses.length}건`)}
+        ${rowText("저장 위치", S.store.mode === "cloud" ? "Supabase · 두 사람 공유" : "이 기기 · localStorage", S.store.mode === "cloud" ? "클라우드" : "로컬")}
+        ${rowText("계정", "", S.store.user?.email || "로그인 안 함")}
+        ${rowText("전표", "", `${S.store.cases.length}건`)}
+        ${rowText("지출", "", `${S.store.expenses.length}건`)}
       </div>
       <div class="form" style="margin-top:14px">
         <button class="btn btn--block" id="m-config" type="button">Supabase 연결 ${cfg.configured ? "다시 " : ""}설정</button>

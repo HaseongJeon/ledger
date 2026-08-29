@@ -1,5 +1,5 @@
 /* 오프라인에서도 앱 껍데기가 뜨도록 하는 최소 캐시 */
-const CACHE = "jeonpyo-v1";
+const CACHE = "jeonpyo-v2";
 const SHELL = [
   "./", "./index.html", "./config.js", "./manifest.json",
   "./assets/styles.css", "./assets/app.js", "./assets/store.js",

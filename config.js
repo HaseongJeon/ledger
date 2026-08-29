@@ -8,6 +8,6 @@
    앱 안 "Supabase 연결 설정"에서 넣은 값이 이 파일보다 우선합니다.
    ──────────────────────────────────────────────────────────── */
 window.APP_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: ""
+  SUPABASE_URL: "https://dotsiylmhwfoadvixnoi.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvdHNpeWxtaHdmb2Fkdml4bm9pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5ODc3NjUsImV4cCI6MjEwMzU2Mzc2NX0.88N1sUPPtSTHylJC0CtZWuF-lqBDlA2cTXuzVGAomGE"
 };
