@@ -16,7 +16,7 @@ GitHub Pages 는 정적 파일만 서빙합니다. 그래서 **네이티브 APK 
 | 오프라인 실행 | Service Worker 로 앱 껍데기 캐시 |
 | 두 사람이 같은 자료 | Supabase Postgres + Realtime |
 | 로그인 | Supabase Auth (이메일 / 비밀번호) |
-| 진짜 `.apk` 파일 | 아래 **Capacitor** 항목 참고 (같은 코드 그대로 감쌈) |
+| 진짜 `.apk` 파일 | Capacitor 로 감싸 GitHub Actions 가 빌드합니다 — [3번 항목](#3-안드로이드-설치-파일-apk) |
 
 ---
 
@@ -70,23 +70,50 @@ git push -u origin main
 
 ---
 
-## 3. 진짜 APK 가 필요하면 (선택)
+## 3. 안드로이드 설치 파일 (APK)
 
-같은 코드를 그대로 감싸서 네이티브 패키지로 만듭니다.
+같은 코드를 Capacitor 로 감싸 APK 를 만듭니다. **빌드는 GitHub 가 대신 합니다** —
+맥에 Android SDK 를 깔 필요가 없습니다.
+
+### 내려받기
+
+| 상황 | 어디서 |
+|---|---|
+| 정식 배포판 | 저장소 **Releases** 탭 → 최신 버전의 `.apk` |
+| 최신 커밋 빌드 | **Actions** 탭 → 최근 `Android APK` 실행 → 아래 **Artifacts** |
+
+### 새 배포판 내기
 
 ```bash
-npm init -y
-npm i -D @capacitor/cli @capacitor/core @capacitor/android
-npx cap init 전표철 com.example.jeonpyo --web-dir=.
-npx cap add android
-npx cap sync
-npx cap open android    # Android Studio 에서 Build > Build APK
+npm version patch -m "전표철 %s"   # package.json 버전 올리고 커밋
+git push && git push --tags
 ```
 
-`capacitor.config.json` 의 `server.url` 을 GitHub Pages 주소로 두면
-APK 를 다시 만들지 않아도 웹만 push 해서 업데이트할 수 있습니다.
+태그를 밀면 워크플로가 APK 를 빌드해 Releases 에 첨부합니다. `main` 에 그냥 푸시하면
+Releases 에는 안 올라가고 Actions 의 Artifacts 로만 남습니다.
 
----
+### 설치
+
+내려받은 `.apk` 를 안드로이드에서 실행하고, 물어보면 **"출처를 알 수 없는 앱 설치"** 를 허용하세요.
+**디버그 서명**이라 Play 스토어에는 올릴 수 없지만 기기에 직접 설치하는 데는 문제가 없습니다.
+정식 서명이 필요해지면 keystore 를 만들어 `android/app/build.gradle` 에 `signingConfigs` 를 추가하고
+워크플로에서 `assembleRelease` 로 바꾸면 됩니다.
+
+### 맥에서 직접 빌드하려면
+
+JDK 17 과 Android SDK 가 필요합니다 (약 2~3GB).
+
+```bash
+npm install
+npm run apk          # www 준비 → cap sync → gradlew assembleDebug
+```
+
+결과물: `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### 아이콘
+
+`assets/icon.svg` 와 `scripts/icon-foreground.svg` 에서 만듭니다. 아이콘을 고쳤다면
+`./scripts/make-icons.sh` 를 실행하세요 (macOS 전용). 생성된 PNG 는 커밋되므로 CI 는 손대지 않습니다.
 
 ## 화면
 
@@ -127,6 +154,12 @@ assets/charts.js      의존성 없는 SVG 도넛 차트
 assets/xlsx.js        엑셀 내보내기 (SheetJS, CSV 대체)
 sw.js                 오프라인 캐시
 supabase/schema.sql   테이블 · RLS · 실시간
+
+capacitor.config.json APK 용 앱 이름 · 패키지 이름
+scripts/build-www.mjs 앱 파일만 www/ 로 모으기 (APK 에 node_modules 가 들어가지 않게)
+scripts/make-icons.sh SVG → 런처 아이콘 PNG (macOS)
+android/              Capacitor 가 만든 네이티브 프로젝트
+.github/workflows/android.yml   APK 빌드
 ```
 
 빌드 도구도 프레임워크도 없습니다. 파일을 열면 바로 돌아갑니다.

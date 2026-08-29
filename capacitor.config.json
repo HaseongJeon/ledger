@@ -1,0 +1,12 @@
+{
+  "appId": "com.jeonpyo.ledger",
+  "appName": "전표철",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#E9ECEB"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

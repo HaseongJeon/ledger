@@ -1,0 +1,90 @@
+# 안드로이드 설치 파일(APK)을 만듭니다.
+#
+#  · main 에 푸시 → Actions 실행 페이지의 Artifacts 에서 내려받기
+#  · v* 태그 푸시 → Releases 에 APK 를 첨부 (두 분께 링크로 배포)
+#  · 수동 실행    → Actions 탭에서 Run workflow
+#
+# 디버그 서명입니다. 안드로이드에서 "출처를 알 수 없는 앱 설치"를 허용하면 설치됩니다.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Capacitor 6 의 Android Gradle Plugin 8.x 는 JDK 17 을 요구합니다.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0"
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 웹 자산 모으기 + 네이티브 프로젝트 동기화
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: APK 빌드
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: 이름 붙이기
+        id: apk
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            LABEL="${GITHUB_REF_NAME}"
+          else
+            LABEL="${VERSION}-${GITHUB_SHA::7}"
+          fi
+          NAME="jeonpyo-cheol-${LABEL}-debug.apk"
+          mv android/app/build/outputs/apk/debug/app-debug.apk "${NAME}"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          ls -lh "${NAME}"
+
+      - name: Artifact 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: 태그면 Release 에 첨부
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.apk.outputs.name }}" \
+            --title "전표철 ${GITHUB_REF_NAME}" \
+            --notes "안드로이드 설치 파일입니다. 내려받아 실행하고, 물어보면 \"출처를 알 수 없는 앱 설치\"를 허용하세요.
+
+          디버그 서명이라 Play 스토어에는 올릴 수 없지만, 기기에 직접 설치하는 데는 문제가 없습니다." \
+            || gh release upload "${GITHUB_REF_NAME}" "${{ steps.apk.outputs.name }}" --clobber

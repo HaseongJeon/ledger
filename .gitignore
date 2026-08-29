@@ -6,3 +6,16 @@ _preview.html
 # 편집기
 .vscode/
 .idea/
+
+# npm / Capacitor
+node_modules/
+www/
+
+# Android 빌드 산출물
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/capacitor-cordova-android-plugins/
+*.apk

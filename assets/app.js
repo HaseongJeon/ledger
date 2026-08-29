@@ -69,6 +69,10 @@ function applyPeriodDefaultsToFinder() {
 }
 
 function registerSW() {
+  // 네이티브(APK)로 감싼 경우엔 등록하지 않습니다 — 앱이 이미 오프라인이고,
+  // 워커가 남으면 앱을 새로 깔아도 옛 화면이 뜹니다.
+  const native = !!window.Capacitor || !!document.querySelector('meta[name="jpc-native"]');
+  if (native) return;
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
