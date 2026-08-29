@@ -197,7 +197,8 @@ function wireChrome() {
   $("#cal-next").onclick = () => shiftMonth(1);
   $("#cal-today").onclick = () => { state.calMonth = new Date(); state.calSel = C.todayISO(); renderCalendar(); };
 
-  $("#fab").onclick = () => (state.tab === "expense" ? expenseForm() : caseForm());
+  $("#btn-add-exp").onclick = () => expenseForm();
+  $("#btn-add-slip-c").onclick = () => caseForm();
   $("#btn-menu").onclick = openMenu;
 
   $("#modal").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeModal(); });
@@ -235,10 +236,6 @@ function switchTab(tab) {
     b.textContent = on ? b.dataset.full : b.dataset.short;
   });
   ["slips", "clients", "expense", "cal", "revenue"].forEach(k => { $("#panel-" + k).hidden = k !== tab; });
-  const fab = $("#fab");
-  // 전표 탭은 합계 스트립 안에, 달력 탭은 날짜 카드 안에 입력 버튼이 있습니다
-  fab.hidden = ["revenue", "slips", "cal"].includes(tab);
-  $("#fab-label").textContent = tab === "expense" ? "지출 입력" : "전표 입력";
   renderCurrent();
 }
 
@@ -260,7 +257,7 @@ function renderSlips() {
   if (!$("#slips-list").hidden) {
     $("#slips-list").innerHTML = rows.length ? rows.map(slipCard).join("") : emptyBox(
       "해당하는 전표가 없습니다",
-      "검색 조건을 넓히거나 오른쪽 아래 ＋ 로 새 전표를 넣으세요."
+      "검색 조건을 넓히거나, 합계 줄의 \"신규 전표\"로 입력하세요."
     );
     $("#slips-list").onclick = e => {
       const b = e.target.closest(".slip"); if (b) caseForm(S.store.cases.find(c => c.id === b.dataset.id));
@@ -322,7 +319,7 @@ function slipTable(rows) {
 
 function tallyHTML(t, count) {
   return `<div class="tally__bar"><p class="tally__h">합계 · ${count}건</p>
-      <button class="tally__add" id="tally-add" type="button">＋ 전표 입력</button></div>
+      <button class="tally__add" id="tally-add" type="button">신규 전표</button></div>
     ${tallyRow("견적가 합", C.won(t.price))}
     ${tallyRow("미수금 합", C.won(t.unpaid), "tally__v--due")}
     ${tallyRow("실제 들어온 돈", C.won(t.received))}
@@ -348,7 +345,7 @@ function caseForm(existing, defaults = {}) {
   const dealers = [...new Set(S.store.cases.map(x => x.dealer).filter(Boolean))];
 
   openModal({
-    title: existing ? "전표 수정" : "새 전표",
+    title: existing ? "전표 수정" : "신규 전표",
     body: `<div class="form">
       <div class="form__2">
         <label class="field"><span class="field__label">날짜</span><input id="c-date" type="date" value="${c.date}"></label>
@@ -438,7 +435,7 @@ function caseForm(existing, defaults = {}) {
     if (!rec.company) return toast("상사명을 넣어 주세요");
     if (!rec.price) return toast("견적가를 넣어 주세요");
     if (rec.unpaid > rec.price) return toast("미수금이 견적가보다 클 수 없습니다");
-    try { await S.saveCase(rec); closeModal(); toast(existing ? "저장했습니다" : "전표를 넣었습니다"); }
+    try { await S.saveCase(rec); closeModal(); toast(existing ? "저장했습니다" : "전표를 등록했습니다"); }
     catch (err) { toast("저장 실패: " + (err.message || err)); }
   };
   if (existing) $("#c-del").onclick = () =>
@@ -553,7 +550,7 @@ function renderExpenseList() {
   const rows = S.store.expenses;
   $("#exp-count").textContent = `${rows.length}건 등록`;
   $("#exp-list").innerHTML = rows.length ? rows.map(expRow).join("") : emptyBox(
-    "등록된 지출이 없습니다", "오른쪽 아래 ＋ 로 지출을 넣으세요. 정기 지출은 달력에도 표시됩니다."
+    "등록된 지출이 없습니다", "오른쪽 위 \"신규 지출\"로 입력하세요. 정기 지출은 달력에도 표시됩니다."
   );
   $("#exp-list").onclick = e => {
     const b = e.target.closest(".exp"); if (b) expenseForm(S.store.expenses.find(x => x.id === b.dataset.id));
@@ -579,7 +576,7 @@ function expenseForm(existing, defaults = {}) {
     date: defaults.date || C.todayISO(), note: ""
   };
   openModal({
-    title: existing ? "지출 수정" : "지출 입력",
+    title: existing ? "지출 수정" : "신규 지출",
     body: `<div class="form">
       <label class="field field--money"><span class="field__label">금액</span><input id="e-amt" inputmode="numeric" value="${e.amount || ""}" placeholder="0"></label>
       <label class="field"><span class="field__label">지출 종류</span>
@@ -626,7 +623,7 @@ function expenseForm(existing, defaults = {}) {
       note: $("#e-note").value.trim()
     };
     if (!obj.amount) return toast("금액을 넣어 주세요");
-    try { await S.saveExpense(obj); closeModal(); toast(existing ? "저장했습니다" : "지출을 넣었습니다"); }
+    try { await S.saveExpense(obj); closeModal(); toast(existing ? "저장했습니다" : "지출을 등록했습니다"); }
     catch (err) { toast("저장 실패: " + (err.message || err)); }
   };
   if (existing) $("#e-del").onclick = () =>
@@ -758,8 +755,8 @@ function renderDayCard(lastDay) {
     ${!d.slips.length && !d.exps.length ? `<p class="hint" style="margin-top:12px">이 날은 아무것도 없습니다.</p>` : ""}
 
     <div class="daycard__acts">
-      <button class="btn" id="day-add-slip" type="button">＋ 전표</button>
-      <button class="btn" id="day-add-exp" type="button">＋ 지출</button>
+      <button class="btn" id="day-add-slip" type="button">전표 추가</button>
+      <button class="btn" id="day-add-exp" type="button">지출 추가</button>
     </div>
   </div>`;
 

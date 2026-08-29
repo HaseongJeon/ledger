@@ -131,6 +131,16 @@ supabase/schema.sql   테이블 · RLS · 실시간
 
 빌드 도구도 프레임워크도 없습니다. 파일을 열면 바로 돌아갑니다.
 
+## 글꼴
+
+**Pretendard** 한 벌만 씁니다 (jsDelivr CDN, dynamic subset). 숫자용 고정폭 서체를 따로 두지 않고
+`font-variant-numeric: tabular-nums`로 자릿수를 맞춥니다 — 한글 글리프가 없는 고정폭 서체에
+`합계 · 8건`이나 번호판의 `가·버·도`가 섞이면 그 글자만 시스템 서체로 떨어지기 때문입니다.
+
+오프라인에서도 쓰려면 [Pretendard 릴리스](https://github.com/orioncactus/pretendard/releases)의
+`woff2`를 `assets/fonts/`에 넣고 `@font-face`로 직접 선언하면 됩니다. CDN이 막혀도
+`-apple-system` / `Malgun Gothic`으로 자연스럽게 떨어집니다.
+
 ## 로컬에서 열어 보기
 
 ```bash

@@ -8,9 +8,9 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/icon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -18,7 +18,6 @@
 <!-- ══════════ 로그인 ══════════ -->
 <section id="view-auth" class="auth" hidden>
   <div class="auth__slip">
-    <div class="auth__punch" aria-hidden="true"><i></i><i></i><i></i></div>
     <p class="auth__eyebrow">전표철</p>
     <h1 class="auth__title">매출·지출<br>관리 장부</h1>
     <p class="auth__sub">전장 · 선팅 · 덴트 시공 전표를 두 사람이 같이 씁니다.</p>
@@ -115,6 +114,7 @@
           <input id="c-q" type="search" placeholder="상사명">
         </label>
         <button class="ghost" id="btn-export-clients" type="button">엑셀 내보내기</button>
+        <button class="btn btn--sm" id="btn-add-slip-c" type="button">신규 전표</button>
       </div>
       <div id="clients-list" class="clients"></div>
       <div class="stage__pad"></div>
@@ -122,12 +122,15 @@
 
     <!-- ────── 3. 지출 ────── -->
     <section class="panel" id="panel-expense" role="tabpanel" aria-labelledby="tab-expense" hidden>
+      <div class="subbar">
       <nav class="subnav" id="expense-subnav">
         <button class="subnav__b is-on" data-sub="list" type="button">내역</button>
         <button class="subnav__b" data-sub="chart" type="button">그래프</button>
         <button class="subnav__b" data-sub="tax" type="button">세금</button>
         <button class="subnav__b" data-sub="sum" type="button">통합정리</button>
       </nav>
+      <button class="btn btn--sm" id="btn-add-exp" type="button">신규 지출</button>
+      </div>
 
       <div class="subpanel" id="sub-list">
         <div class="listhead">
@@ -209,14 +212,12 @@
     </section>
   </main>
 
-  <button class="fab" id="fab" type="button"><span class="fab__plus">＋</span><span id="fab-label">전표 입력</span></button>
 </div>
 
 <!-- ══════════ 모달 ══════════ -->
 <div class="sheetwrap" id="modal" hidden>
   <div class="sheetwrap__scrim" data-close></div>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal__grip" aria-hidden="true"></div>
     <header class="modal__head">
       <h2 class="modal__title" id="modal-title"></h2>
       <button class="iconbtn" data-close type="button" aria-label="닫기">✕</button>
