@@ -46,7 +46,7 @@ create table if not exists public.cases (
   phone       text,                                -- 연락처
   car_model   text,                                -- 차종
   plate       text,                                -- 차량번호
-  work_type   text not null check (work_type in ('전장','선팅','덴트')),
+  items       jsonb not null default '[]'::jsonb,  -- [{type:'전장'|'선팅'|'덴트', price, cost}, ...] 작업내용별 금액
   price       numeric(14,0) not null default 0,    -- 견적가
   pay_method  text not null default '카드' check (pay_method in ('카드','현금','세금계산서')),
   unpaid      numeric(14,0) not null default 0,    -- 미수금
@@ -168,3 +168,63 @@ create trigger cases_notify after insert on public.cases
 drop trigger if exists expenses_notify on public.expenses;
 create trigger expenses_notify after insert on public.expenses
   for each row execute function public.notify_new_entry();
+
+-- ═══════════════════════════════════════════════════════════════
+--  8. 작업 종류 복수 선택 + 예약(달력에 다가올 작업 적어두기)
+-- ═══════════════════════════════════════════════════════════════
+
+-- ── 전표 하나에 작업 종류를 여러 개(선팅+전장 등) 담고, 종류별로 금액을 따로 받기 ──
+create or replace function public.valid_work_items(items jsonb)
+returns boolean language sql immutable as $$
+  select items is not null
+    and jsonb_typeof(items) = 'array'
+    and jsonb_array_length(items) > 0
+    and not exists (
+      select 1 from jsonb_array_elements(items) e
+      where (e->>'type') is null
+         or (e->>'type') not in ('전장','선팅','덴트')
+         or (e->>'price') is null
+    )
+$$;
+
+-- 기존 DB에 남아 있던 work_type 컬럼을 items 로 옮기고 지운다 (처음 실행할 때만 동작,
+-- 그 다음부터는 work_type 컬럼이 이미 없으므로 조용히 건너뜀 — 재실행 안전)
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'cases' and column_name = 'work_type') then
+    update public.cases set items = jsonb_build_array(jsonb_build_object('type', work_type, 'price', price, 'cost', cost))
+      where jsonb_array_length(items) = 0;
+    alter table public.cases drop constraint if exists cases_work_type_check;
+    alter table public.cases drop column work_type;
+  end if;
+end $$;
+
+alter table public.cases drop constraint if exists items_valid;
+alter table public.cases add constraint items_valid check (public.valid_work_items(items));
+
+-- ── 예약: 달력에 다가올 작업을 미리 적어 둡니다 (금액 없음 — 실제 작업이 끝나면 전표로 새로 입력) ──
+create table if not exists public.reservations (
+  id         uuid primary key default gen_random_uuid(),
+  date       date not null,
+  company    text,
+  dealer     text,
+  phone      text,
+  car_model  text,
+  plate      text,
+  types      text[] not null default '{}' check (types <@ array['전장','선팅','덴트']),
+  note       text,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid()
+);
+create index if not exists reservations_date_idx on public.reservations (date);
+
+alter table public.reservations enable row level security;
+drop policy if exists reservations_all on public.reservations;
+create policy reservations_all on public.reservations
+  for all to authenticated using (public.is_member()) with check (public.is_member());
+
+do $$
+begin
+  begin alter publication supabase_realtime add table public.reservations; exception when duplicate_object then null; end;
+end $$;
