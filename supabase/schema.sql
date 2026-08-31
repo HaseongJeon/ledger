@@ -109,3 +109,62 @@ end $$;
 -- insert into public.members (user_id, email)
 -- select id, email from auth.users
 -- on conflict (user_id) do nothing;
+
+-- ═══════════════════════════════════════════════════════════════
+--  7. 크로스 기기 알림 — 한 사람이 입력하면 다른 사람 기기에 푸시
+--  아래 SQL 실행 전에 1회 준비할 것:
+--    1) Supabase 대시보드 → Edge Functions 에 notify-entry 함수를 배포
+--       (supabase/functions/notify-entry, README 의 "직접 해야 하는 일" 참고)
+--    2) SQL Editor 에서 아래를 먼저 실행 (임의의 긴 무작위 문자열로 교체):
+--         select vault.create_secret('여기에-무작위-긴-문자열', 'notify_webhook_secret');
+--       Edge Function 배포 시 같은 값을 NOTIFY_WEBHOOK_SECRET 시크릿으로도 넣어야 함.
+-- ═══════════════════════════════════════════════════════════════
+
+create extension if not exists pg_net with schema extensions;
+
+-- ── 기기별 FCM 토큰 ──────────────────────────────────────────
+create table if not exists public.push_tokens (
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  device_id  text not null,
+  platform   text not null check (platform in ('web','android')),
+  fcm_token  text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, device_id)
+);
+
+alter table public.push_tokens enable row level security;
+
+drop policy if exists push_tokens_own on public.push_tokens;
+create policy push_tokens_own on public.push_tokens
+  for all to authenticated
+  using (user_id = auth.uid() and public.is_member())
+  with check (user_id = auth.uid() and public.is_member());
+
+-- ── 새 전표/지출이 추가되면 Edge Function 호출 ────────────────
+create or replace function public.notify_new_entry()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  secret text;
+begin
+  select decrypted_secret into secret
+    from vault.decrypted_secrets where name = 'notify_webhook_secret';
+  if secret is null then
+    return NEW; -- 아직 시크릿을 안 만들었으면 조용히 건너뜀
+  end if;
+  perform net.http_post(
+    url     := 'https://dotsiylmhwfoadvixnoi.supabase.co/functions/v1/notify-entry',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', secret),
+    body    := jsonb_build_object('table', TG_TABLE_NAME, 'record', to_jsonb(NEW))
+  );
+  return NEW;
+end $$;
+
+drop trigger if exists cases_notify on public.cases;
+create trigger cases_notify after insert on public.cases
+  for each row execute function public.notify_new_entry();
+
+drop trigger if exists expenses_notify on public.expenses;
+create trigger expenses_notify after insert on public.expenses
+  for each row execute function public.notify_new_entry();

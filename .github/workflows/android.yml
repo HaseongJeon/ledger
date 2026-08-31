@@ -44,6 +44,15 @@ jobs:
       - name: 의존성 설치
         run: npm ci
 
+      # 저장소 Settings → Secrets → Actions 에 GOOGLE_SERVICES_JSON 을 등록하면
+      # 알림(FCM)이 켜진 채로 빌드됩니다. 없으면 이 스텝은 건너뛰고, 알림 기능만 빠진 채
+      # 기존과 동일하게 빌드됩니다.
+      - name: google-services.json 준비 (있으면)
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: 웹 자산 모으기 + 네이티브 프로젝트 동기화
         run: |
           npm run build

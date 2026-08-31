@@ -33,7 +33,7 @@ GitHub Pages 는 정적 파일만 서빙합니다. 그래서 **네이티브 APK 
 6. [`config.js`](config.js) 에 붙여넣습니다.
 
 ```js
-window.APP_CONFIG = {
+globalThis.APP_CONFIG = {
   SUPABASE_URL: "https://xxxxxxxx.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOi..."
 };
@@ -115,6 +115,49 @@ npm run apk          # www 준비 → cap sync → gradlew assembleDebug
 `assets/icon.svg` 와 `scripts/icon-foreground.svg` 에서 만듭니다. 아이콘을 고쳤다면
 `./scripts/make-icons.sh` 를 실행하세요 (macOS 전용). 생성된 PNG 는 커밋되므로 CI 는 손대지 않습니다.
 
+---
+
+## 4. 크로스 기기 알림 (선택)
+
+한 사람이 전표·지출을 추가하면 **앱이 꺼져 있는** 다른 기기에도 알림이 갑니다.
+안 하고 그냥 둬도 나머지 기능은 전부 그대로 동작합니다 — 이 절이 없으면 알림만 안 올 뿐입니다.
+
+| 기기 | 완전 종료 상태에서도 오나요 |
+|---|---|
+| 안드로이드 APK | 옵니다 (FCM) |
+| 데스크톱 브라우저 / PWA | 옵니다 (FCM Web Push) — 브라우저의 "백그라운드 실행" 설정에 따라 다를 수 있음 |
+| Windows 데스크톱 앱 ([ledger-windows](https://github.com/HaseongJeon/ledger-windows)) | 창을 닫아도 트레이에 상주하는 동안만 옵니다. 트레이의 **"종료"**로 완전히 끄면 다음 실행 때 최신 내역이 바로 보이는 것으로 대신합니다 (FCM은 안 씀 — 유지보수가 끊긴 라이브러리에 의존해야 해서 일부러 뺐습니다) |
+
+### 준비물
+
+1. [Firebase 콘솔](https://console.firebase.google.com) 에서 프로젝트 생성 (무료 Spark 요금제로 충분).
+   * **프로젝트 설정 → 일반** 에서 **웹 앱** 을 하나 등록 → 나오는 값(`apiKey`, `authDomain`, `projectId`,
+     `messagingSenderId`, `appId`)을 [`config.js`](config.js) 의 `FIREBASE` 블록에 채웁니다.
+   * **프로젝트 설정 → Cloud Messaging** 탭 → **웹 푸시 인증서** 생성 → 나오는 키를 `vapidKey` 에 채웁니다.
+   * **프로젝트 설정 → 일반 → 내 앱** 에서 **Android 앱** 도 하나 등록 (패키지 이름 `com.jeonpyo.ledger`) →
+     `google-services.json` 을 내려받아 `android/app/google-services.json` 에 둡니다 (커밋하지 않음).
+   * **프로젝트 설정 → 서비스 계정** → **새 비공개 키 생성** → JSON 파일을 받아 둡니다 (다음 단계에서 씀).
+2. [Supabase CLI](https://supabase.com/docs/guides/cli) 로 Edge Function 배포:
+   ```bash
+   supabase login
+   supabase link --project-ref dotsiylmhwfoadvixnoi
+   supabase functions deploy notify-entry --no-verify-jwt
+   supabase secrets set \
+     NOTIFY_WEBHOOK_SECRET="임의의 긴 무작위 문자열" \
+     FCM_PROJECT_ID="Firebase 프로젝트 ID" \
+     FCM_SERVICE_ACCOUNT="$(cat 서비스계정.json)"
+   ```
+3. **SQL Editor** 에서 `NOTIFY_WEBHOOK_SECRET` 과 **똑같은 값**으로 한 번만 실행 (`supabase/schema.sql`
+   7번 섹션에 이미 안내되어 있음):
+   ```sql
+   select vault.create_secret('임의의 긴 무작위 문자열', 'notify_webhook_secret');
+   ```
+   그 뒤 `supabase/schema.sql` 을 (처음 설정 때처럼) SQL Editor 에 다시 통째로 붙여넣고 Run 하면
+   `push_tokens` 테이블과 트리거가 만들어집니다.
+4. 안드로이드 APK 를 GitHub Actions 로 계속 빌드한다면, 저장소 **Settings → Secrets and variables →
+   Actions** 에 `GOOGLE_SERVICES_JSON` 이름으로 위 JSON 파일의 **내용 전체**를 등록하세요. 안 하면
+   알림 기능만 빠진 채 지금처럼 빌드됩니다.
+
 ## 화면
 
 | 탭 | 하는 일 |
@@ -152,8 +195,11 @@ assets/store.js       Supabase / localStorage 데이터 계층 + 실시간 동�
 assets/calc.js         집계 · 세금 · 포맷
 assets/charts.js      의존성 없는 SVG 도넛 차트
 assets/xlsx.js        엑셀 내보내기 (SheetJS, CSV 대체)
+assets/push.js        크로스 기기 알림 (Android FCM / 웹 Web Push / Electron 알림)
 sw.js                 오프라인 캐시
-supabase/schema.sql   테이블 · RLS · 실시간
+firebase-messaging-sw.js  브라우저가 꺼져 있어도 알림 받는 별도 서비스워커
+supabase/schema.sql   테이블 · RLS · 실시간 · push_tokens · 알림 트리거
+supabase/functions/notify-entry  새 전표/지출을 FCM으로 쏘는 Edge Function
 
 capacitor.config.json APK 용 앱 이름 · 패키지 이름
 scripts/build-www.mjs 앱 파일만 www/ 로 모으기 (APK 에 node_modules 가 들어가지 않게)

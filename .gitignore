@@ -19,3 +19,6 @@ android/local.properties
 android/.idea/
 android/capacitor-cordova-android-plugins/
 *.apk
+
+# Firebase — 알림 기능용 비밀 설정 (기기마다 직접 받아서 넣는 파일)
+android/app/google-services.json
