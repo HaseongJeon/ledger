@@ -271,6 +271,7 @@ function renderSlips() {
   } else {
     $("#slips-table").innerHTML = slipTable(rows);
     $("#slips-table").onclick = e => {
+      if (e.target.closest("a.tel-link")) return;
       const tr = e.target.closest("tr[data-id]"); if (tr) caseForm(S.store.cases.find(c => c.id === tr.dataset.id));
     };
   }
@@ -309,7 +310,7 @@ function slipTable(rows) {
     <thead><tr>${SLIP_COLS.map(h => `<th>${h}</th>`).join("")}</tr></thead>
     <tbody>${rows.map(c => `<tr data-id="${c.id}">
       <td>${C.fmtDateFull(c.date)}</td><td>${esc(c.company)}</td><td>${esc(c.dealer)}</td>
-      <td>${esc(c.phone)}</td><td>${esc(c.carModel)}</td>
+      <td>${c.phone ? `<a class="tel-link" href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : ""}</td><td>${esc(c.carModel)}</td>
       <td><span class="plate">${esc(c.plate)}</span></td><td>${(c.items || []).map(i => esc(i.type)).join(" + ")}</td>
       <td class="num">${C.won(c.price)}</td><td>${esc(c.payMethod)}</td>
       <td class="num">${c.unpaid ? C.won(c.unpaid) : "—"}</td>
@@ -369,7 +370,7 @@ function caseForm(existing, defaults = {}) {
       <datalist id="dl-co">${companies.map(v => `<option value="${esc(v)}">`).join("")}</datalist>
       <datalist id="dl-dl">${dealers.map(v => `<option value="${esc(v)}">`).join("")}</datalist>
       <div class="form__2">
-        <label class="field"><span class="field__label">연락처</span><input id="c-phone" type="tel" inputmode="tel" value="${esc(c.phone)}" placeholder="010-0000-0000"></label>
+        <div class="field" id="c-phone-field"></div>
         <label class="field"><span class="field__label">차종</span><input id="c-model" value="${esc(c.carModel)}" placeholder="그랜저 IG"></label>
       </div>
 
@@ -391,10 +392,35 @@ function caseForm(existing, defaults = {}) {
 
       <label class="field"><span class="field__label">비고</span><textarea id="c-note" placeholder="전면 15% · 측후면 5%">${esc(c.note)}</textarea></label>
     </div>`,
-    foot: `${existing ? `<button class="btn btn--danger btn--icononly" id="c-del" type="button">삭제</button>` : ""}
-           <button class="btn" data-close type="button">취소</button>
-           <button class="btn btn--plate" id="c-save" type="button">${existing ? "저장" : "전표 추가"}</button>`
+    foot: existing
+      ? `<button class="btn btn--danger btn--icononly" id="c-del" type="button">삭제</button>
+         <button class="btn btn--sm" data-close type="button">취소</button>
+         <button class="btn btn--plate" id="c-edit" type="button">수정</button>
+         <button class="btn btn--sm btn--plate" id="c-save" type="button">저장</button>`
+      : `<button class="btn" data-close type="button">취소</button>
+         <button class="btn btn--plate" id="c-save" type="button">전표 추가</button>`
   });
+
+  /* 기존 전표는 "수정" 을 눌러야만 값을 바꿀 수 있게 잠가 둡니다 (실수로 건드리는 것 방지) */
+  let editing = !existing;
+
+  function renderPhoneField() {
+    $("#c-phone-field").innerHTML = editing
+      ? `<span class="field__label">연락처</span><input id="c-phone" type="tel" inputmode="tel" value="${esc(c.phone)}" placeholder="010-0000-0000">`
+      : `<span class="field__label">연락처</span>${c.phone
+          ? `<a class="tel-link" href="tel:${esc(c.phone)}">${esc(c.phone)}</a>`
+          : `<span class="hint" style="display:inline;margin:0">번호 없음</span>`}`;
+  }
+
+  function applyEditingState() {
+    $("#modal-body").classList.toggle("is-locked", !editing);
+    $$("#modal-body input, #modal-body textarea").forEach(el => { if (el.id !== "c-phone") el.disabled = !editing; });
+    renderPhoneField();
+    if (existing) {
+      $("#c-edit").hidden = editing;
+      $("#c-save").disabled = !editing;
+    }
+  }
 
   const itemsTotal = () => selected.reduce((s, t) => {
     const v = itemVals[t] || { price: 0, cost: 0 };
@@ -456,6 +482,9 @@ function caseForm(existing, defaults = {}) {
 
   segment("#c-pay");
   $("#c-hasdue").onchange = e => { $("#c-duewrap").hidden = !e.target.checked; recalc(); };
+
+  applyEditingState();
+  if (existing) $("#c-edit").onclick = () => { editing = true; applyEditingState(); };
 
   /* 알잘딱: 딜러 이름을 이미 쓴 적 있으면 상사명·연락처를 채워 준다 */
   $("#c-dealer").addEventListener("change", () => {
