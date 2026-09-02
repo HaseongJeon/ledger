@@ -1,5 +1,6 @@
-// 전표철 — cases/expenses에 새 행이 생기면 "입력한 사람을 뺀 나머지 멤버"의
-// 기기(push_tokens)로 FCM 알림을 보내는 Edge Function.
+// 전표철 — cases/expenses에 새 행이 생기면 "같은 계정으로 등록된 다른 기기"
+// (push_tokens)로 FCM 알림을 보내는 Edge Function. 계정마다 데이터가 분리돼 있으므로
+// 다른 사람에게는 절대 보내지 않고, 입력한 계정 본인의 기기에만 갑니다.
 // 배포: supabase functions deploy notify-entry --no-verify-jwt
 // 필요한 시크릿: NOTIFY_WEBHOOK_SECRET, FCM_PROJECT_ID, FCM_SERVICE_ACCOUNT(서비스 계정 JSON 문자열)
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -48,7 +49,7 @@ Deno.serve(async req => {
   const { data: tokens, error } = await sb
     .from("push_tokens")
     .select("device_id, fcm_token")
-    .neq("user_id", createdBy);
+    .eq("user_id", createdBy);
   if (error) return new Response(error.message, { status: 500 });
   if (!tokens?.length) return new Response("no recipients", { status: 200 });
 

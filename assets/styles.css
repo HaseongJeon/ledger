@@ -75,6 +75,8 @@ button{ cursor:pointer; }
 .auth__form{ display:grid; gap:12px; }
 .auth__msg{ margin:2px 0 0; font-size:12.5px; color: var(--rose); min-height:1em; line-height:1.5; }
 .auth__msg--info{ color: var(--ink-3); }
+.auth__row{ display:flex; gap:8px; }
+.auth__row .btn{ flex:1; }
 .auth__alt{ display:flex; flex-direction:column; gap:8px; margin-top:20px; padding-top:16px; border-top:1px dashed var(--line); }
 
 .linkbtn{ background:none; border:0; padding:2px 0; text-align:left; font-size:12.5px; color: var(--ink-3); text-decoration: underline; text-underline-offset:3px; }

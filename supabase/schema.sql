@@ -1,41 +1,15 @@
 -- ═══════════════════════════════════════════════════════════════
 --  전표철 — Supabase 스키마
 --  Supabase 대시보드 → SQL Editor 에 통째로 붙여넣고 Run 하세요.
---  두 사람만 쓰는 공용 장부라, members 에 등록된 사람만 읽고 씁니다.
+--  계정마다 완전히 분리된 개인 장부입니다 — 자신이 만든 행만 읽고 씁니다.
 -- ═══════════════════════════════════════════════════════════════
 
--- ── 1. 이 장부를 쓸 사람 ──────────────────────────────────────
-create table if not exists public.members (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  email   text,
-  name    text,
-  added_at timestamptz not null default now()
-);
-
--- 로그인한 사람이 멤버인지 확인하는 함수 (RLS 안에서 재귀 없이 쓰려고 security definer)
-create or replace function public.is_member()
-returns boolean
-language sql stable security definer set search_path = public
-as $$ select exists (select 1 from public.members m where m.user_id = auth.uid()) $$;
-
--- 처음 로그인하는 사람을 자동으로 멤버에 넣습니다.
--- 두 사람만 쓸 것이므로, 2명이 등록된 뒤에는 더 이상 들어오지 못합니다.
-create or replace function public.auto_enroll()
-returns trigger
-language plpgsql security definer set search_path = public
-as $$
-begin
-  if (select count(*) from public.members) < 2 then
-    insert into public.members (user_id, email) values (new.id, new.email)
-    on conflict (user_id) do nothing;
-  end if;
-  return new;
-end $$;
-
+-- 예전 버전에서 쓰던 "공용 장부(멤버 등록)" 구조는 더 이상 안 씁니다.
+-- is_member() 를 쓰던 예전 RLS 정책들은 cascade 로 같이 지워지고, 아래 4번에서 새로 만듭니다.
 drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.auto_enroll();
+drop function if exists public.auto_enroll();
+drop table if exists public.members cascade;
+drop function if exists public.is_member() cascade;
 
 -- ── 2. 매출 전표 ─────────────────────────────────────────────
 create table if not exists public.cases (
@@ -80,38 +54,27 @@ create table if not exists public.expenses (
 
 create index if not exists expenses_date_idx on public.expenses (date desc);
 
--- ── 4. RLS: 멤버만 전부 읽고 쓴다 ────────────────────────────
-alter table public.members  enable row level security;
+-- ── 4. RLS: 자신이 만든 행만 읽고 쓴다 ────────────────────────
 alter table public.cases    enable row level security;
 alter table public.expenses enable row level security;
 
-drop policy if exists members_read on public.members;
-create policy members_read on public.members
-  for select to authenticated using (user_id = auth.uid() or public.is_member());
-
 drop policy if exists cases_all on public.cases;
 create policy cases_all on public.cases
-  for all to authenticated using (public.is_member()) with check (public.is_member());
+  for all to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
 
 drop policy if exists expenses_all on public.expenses;
 create policy expenses_all on public.expenses
-  for all to authenticated using (public.is_member()) with check (public.is_member());
+  for all to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
 
--- ── 5. 실시간: 상대가 입력하면 내 화면에 바로 뜨게 ───────────
+-- ── 5. 실시간: 내 다른 기기 화면에도 바로 반영 ────────────────
 do $$
 begin
   begin alter publication supabase_realtime add table public.cases; exception when duplicate_object then null; end;
   begin alter publication supabase_realtime add table public.expenses; exception when duplicate_object then null; end;
 end $$;
 
--- ── 6. 이미 만들어 둔 계정이 있다면 손으로 멤버에 넣어 주세요 ─
---    (트리거는 "앞으로 새로 생기는" 계정에만 걸립니다)
--- insert into public.members (user_id, email)
--- select id, email from auth.users
--- on conflict (user_id) do nothing;
-
 -- ═══════════════════════════════════════════════════════════════
---  7. 크로스 기기 알림 — 한 사람이 입력하면 다른 사람 기기에 푸시
+--  7. 크로스 기기 알림 — 한 사람이 입력하면 같은 계정의 다른 기기에 푸시
 --  아래 SQL 실행 전에 1회 준비할 것:
 --    1) Supabase 대시보드 → Edge Functions 에 notify-entry 함수를 배포
 --       (supabase/functions/notify-entry, README 의 "직접 해야 하는 일" 참고)
@@ -137,8 +100,8 @@ alter table public.push_tokens enable row level security;
 drop policy if exists push_tokens_own on public.push_tokens;
 create policy push_tokens_own on public.push_tokens
   for all to authenticated
-  using (user_id = auth.uid() and public.is_member())
-  with check (user_id = auth.uid() and public.is_member());
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- ── 새 전표/지출이 추가되면 Edge Function 호출 ────────────────
 create or replace function public.notify_new_entry()
@@ -187,6 +150,10 @@ returns boolean language sql immutable as $$
     )
 $$;
 
+-- items 컬럼이 없는 예전 테이블(work_type 만 있던 시절)에도 추가해 둔다 —
+-- 이미 있으면(최신 설치) 조용히 건너뜀
+alter table public.cases add column if not exists items jsonb not null default '[]'::jsonb;
+
 -- 기존 DB에 남아 있던 work_type 컬럼을 items 로 옮기고 지운다 (처음 실행할 때만 동작,
 -- 그 다음부터는 work_type 컬럼이 이미 없으므로 조용히 건너뜀 — 재실행 안전)
 do $$
@@ -222,7 +189,7 @@ create index if not exists reservations_date_idx on public.reservations (date);
 alter table public.reservations enable row level security;
 drop policy if exists reservations_all on public.reservations;
 create policy reservations_all on public.reservations
-  for all to authenticated using (public.is_member()) with check (public.is_member());
+  for all to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
 
 do $$
 begin

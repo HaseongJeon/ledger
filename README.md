@@ -1,6 +1,7 @@
 # 전표철
 
-전장 · 선팅 · 덴트 시공 매출 전표와 지출을 **두 사람이 같이 쓰는 장부**입니다.
+전장 · 선팅 · 덴트 시공 매출 전표와 지출을 관리하는 **계정별 개인 장부**입니다.
+계정마다 데이터가 완전히 분리되고, 회원가입은 앱 안에서 바로 됩니다.
 GitHub Pages 로 배포하고, 안드로이드 폰에서 앱처럼 씁니다.
 
 ---
@@ -14,8 +15,8 @@ GitHub Pages 는 정적 파일만 서빙합니다. 그래서 **네이티브 APK 
 |---|---|
 | 안드로이드 홈 화면에 아이콘 | 크롬에서 열고 **⋮ → 홈 화면에 추가**. 전체화면·아이콘·스플래시 모두 네이티브와 동일 |
 | 오프라인 실행 | Service Worker 로 앱 껍데기 캐시 |
-| 두 사람이 같은 자료 | Supabase Postgres + Realtime |
-| 로그인 | Supabase Auth (이메일 / 비밀번호) |
+| 여러 기기에서 이어 쓰기 | Supabase Postgres + Realtime (계정별로 분리) |
+| 로그인 / 회원가입 | Supabase Auth (이메일 / 비밀번호), 가입은 앱 안에서 바로 처리 |
 | 진짜 `.apk` 파일 | Capacitor 로 감싸 GitHub Actions 가 빌드합니다 — [3번 항목](#3-안드로이드-설치-파일-apk) |
 
 ---
@@ -25,12 +26,12 @@ GitHub Pages 는 정적 파일만 서빙합니다. 그래서 **네이티브 APK 
 1. [supabase.com](https://supabase.com) 에서 프로젝트를 만듭니다.
 2. **SQL Editor** 에 [`supabase/schema.sql`](supabase/schema.sql) 을 통째로 붙여넣고 **Run**.
    테이블 · 인덱스 · RLS 정책 · 실시간 구독이 한 번에 만들어집니다.
-3. **Authentication → Users → Add user** 로 쓸 사람 2명을 만듭니다.
-   (Auto Confirm User 를 켜면 이메일 인증 없이 바로 로그인됩니다.)
-4. **Authentication → Providers → Email** 에서 **Enable sign-ups** 를 **끕니다.**
-   두 사람 계정을 만든 뒤 꺼야 아무나 가입하지 못합니다.
-5. **Project Settings → API** 에서 `Project URL` 과 `anon public` 키를 복사합니다.
-6. [`config.js`](config.js) 에 붙여넣습니다.
+3. **Authentication → Providers → Email** 에서 **Enable sign-ups** 가 켜져 있는지 확인합니다.
+   앱 로그인 화면의 "회원가입" 버튼이 이 설정을 통해 계정을 직접 만듭니다 — 대시보드에서
+   손으로 계정을 추가할 필요가 없습니다. (필요하면 **Confirm email** 을 꺼서 이메일 인증 없이
+   가입과 동시에 로그인되게 할 수 있습니다.)
+4. **Project Settings → API** 에서 `Project URL` 과 `anon public` 키를 복사합니다.
+5. [`config.js`](config.js) 에 붙여넣습니다.
 
 ```js
 globalThis.APP_CONFIG = {
@@ -40,7 +41,8 @@ globalThis.APP_CONFIG = {
 ```
 
 > `anon` 키는 공개 저장소에 올라가도 됩니다. 실제 보호는 `schema.sql` 의 RLS 정책이
-> 합니다 — `members` 테이블에 등록된 두 사람만 읽고 쓸 수 있습니다.
+> 합니다 — 누구든 가입은 할 수 있지만, `cases`/`expenses`/`reservations` 는 각자 자신이
+> 만든 행만 읽고 쓸 수 있어서 다른 계정의 자료는 전혀 보이지 않습니다.
 > 앱 안 **설정 → Supabase 연결 설정** 에서 넣으면 `config.js` 를 안 고쳐도 됩니다.
 
 ---
@@ -119,7 +121,8 @@ npm run apk          # www 준비 → cap sync → gradlew assembleDebug
 
 ## 4. 크로스 기기 알림 (선택)
 
-한 사람이 전표·지출을 추가하면 **앱이 꺼져 있는** 다른 기기에도 알림이 갑니다.
+같은 계정으로 전표·지출을 추가하면 **앱이 꺼져 있는** 그 계정의 다른 기기에도 알림이 갑니다
+(예: 휴대폰에서 입력 → 태블릿에도 알림). 다른 계정에는 절대 가지 않습니다.
 안 하고 그냥 둬도 나머지 기능은 전부 그대로 동작합니다 — 이 절이 없으면 알림만 안 올 뿐입니다.
 
 | 기기 | 완전 종료 상태에서도 오나요 |

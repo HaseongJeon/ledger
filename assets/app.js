@@ -23,8 +23,12 @@ async function boot() {
   registerSW();
   wireChrome();
 
+  if (S.isLocalPinned()) {
+    S.restoreLocalSession();
+    return enterApp();
+  }
   const cfg = S.readConfig();
-  if (cfg.configured && !S.isLocalPinned()) {
+  if (cfg.configured) {
     try {
       const sess = await S.currentSession();
       if (sess) return enterApp();
@@ -32,20 +36,25 @@ async function boot() {
     showAuth();
     return;
   }
-  if (S.isLocalPinned() || !cfg.configured) {
-    if (S.isLocalPinned()) return enterApp();
-    showAuth(cfg.configured ? "" : "Supabase 연결 정보가 없습니다. 아래에서 설정하거나, 이 기기에서만 먼저 써보세요.");
-  }
+  showAuth("Supabase 연결 정보가 없습니다. 아래에서 설정하거나, 이 기기에서 계정을 만들어 먼저 써보세요.");
 }
 
 function showAuth(msg = "") {
   $("#view-auth").hidden = false;
+  $("#view-signup").hidden = true;
   $("#view-app").hidden = true;
   if (msg) { $("#auth-msg").textContent = msg; $("#auth-msg").classList.add("auth__msg--info"); }
 }
 
+function showSignup() {
+  $("#view-auth").hidden = true;
+  $("#view-signup").hidden = false;
+  $("#signup-msg").textContent = ""; $("#signup-msg").classList.remove("auth__msg--info");
+}
+
 async function enterApp() {
   $("#view-auth").hidden = true;
+  $("#view-signup").hidden = true;
   $("#view-app").hidden = false;
   const badge = $("#mode-badge");
   badge.textContent = S.store.mode === "cloud" ? "클라우드" : "로컬";
@@ -131,14 +140,56 @@ function wireChrome() {
     const btn = $("#auth-submit");
     btn.disabled = true; btn.textContent = "확인 중…";
     $("#auth-msg").textContent = ""; $("#auth-msg").classList.remove("auth__msg--info");
+    const email = $("#auth-email").value, pass = $("#auth-pass").value;
     try {
-      await S.signIn($("#auth-email").value, $("#auth-pass").value);
-      S.pinLocal(false);
-      await enterApp();
+      const local = await S.signInLocal(email, pass);
+      if (local) {
+        S.pinLocal(true);
+        await enterApp();
+      } else {
+        await S.signIn(email, pass);
+        S.pinLocal(false);
+        await enterApp();
+      }
     } catch (err) {
       $("#auth-msg").textContent = translateAuthError(err);
     } finally {
       btn.disabled = false; btn.textContent = "로그인";
+    }
+  });
+  $("#auth-signup").onclick = () => showSignup();
+  $("#signup-back").onclick = () => showAuth();
+
+  $("#signup-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = $("#signup-submit");
+    const msg = $("#signup-msg");
+    msg.textContent = ""; msg.classList.remove("auth__msg--info");
+    const email = $("#signup-email").value.trim();
+    const pass = $("#signup-pass").value;
+    const pass2 = $("#signup-pass2").value;
+    if (pass !== pass2) { msg.textContent = "비밀번호가 서로 다릅니다."; return; }
+    btn.disabled = true; btn.textContent = "가입 중…";
+    try {
+      if (S.readConfig().configured) {
+        // Supabase 가 연결돼 있으면 그 계정으로 바로 회원가입 — 대시보드에서 손으로 추가할 필요 없음
+        const data = await S.signUpCloud(email, pass);
+        if (data.session) {
+          S.pinLocal(false);
+          await enterApp();
+        } else {
+          msg.textContent = "가입됐습니다. 메일함에서 인증 링크를 눌러야 로그인할 수 있어요.";
+          msg.classList.add("auth__msg--info");
+        }
+      } else {
+        await S.signUpLocal(email, pass);
+        S.pinLocal(true);
+        await enterApp();
+      }
+    } catch (err) {
+      msg.textContent = translateAuthError(err);
+    } finally {
+      btn.disabled = false; btn.textContent = "가입하기";
     }
   });
   $("#auth-local").onclick = async () => { S.pinLocal(true); S.store.mode = "local"; await enterApp(); };
@@ -224,6 +275,10 @@ function translateAuthError(err) {
   if (m.includes("invalid login")) return "이메일 또는 비밀번호가 맞지 않습니다.";
   if (m.includes("failed to fetch") || m.includes("networkerror")) return "서버에 연결하지 못했습니다. Supabase 주소를 확인하세요.";
   if (m.includes("email not confirmed")) return "이메일 인증이 아직 끝나지 않았습니다.";
+  if (m.includes("already registered") || m.includes("already exists")) return "이미 가입된 이메일입니다. 로그인해 주세요.";
+  if (m.includes("password") && m.includes("least")) return "비밀번호가 너무 짧습니다. 6자 이상으로 입력하세요.";
+  if (m.includes("unable to validate email") || m.includes("invalid email")) return "이메일 형식이 올바르지 않습니다.";
+  if (m.includes("signups not allowed") || m.includes("signup is disabled")) return "지금은 새 가입을 받지 않습니다. 관리자에게 문의하세요.";
   return err?.message || "로그인하지 못했습니다.";
 }
 
@@ -1190,7 +1245,7 @@ function openMenu() {
   openModal({
     title: "설정",
     body: `<div class="rows">
-        ${rowText("저장 위치", S.store.mode === "cloud" ? "Supabase · 두 사람 공유" : "이 기기 · localStorage", S.store.mode === "cloud" ? "클라우드" : "로컬")}
+        ${rowText("저장 위치", S.store.mode === "cloud" ? "Supabase · 내 계정 전용" : "이 기기 · localStorage", S.store.mode === "cloud" ? "클라우드" : "로컬")}
         ${rowText("계정", "", S.store.user?.email || "로그인 안 함")}
         ${rowText("전표", "", `${S.store.cases.length}건`)}
         ${rowText("지출", "", `${S.store.expenses.length}건`)}
@@ -1198,19 +1253,23 @@ function openMenu() {
       </div>
       <div class="form" style="margin-top:14px">
         <button class="btn btn--block" id="m-config" type="button">Supabase 연결 ${cfg.configured ? "다시 " : ""}설정</button>
-        ${S.store.mode === "cloud"
+        ${S.store.mode === "cloud" || S.store.user
           ? `<button class="btn btn--block" id="m-out" type="button">로그아웃</button>`
           : `<button class="btn btn--block" id="m-cloud" type="button">클라우드로 전환 (로그인)</button>`}
         <button class="btn btn--block btn--danger" id="m-wipe" type="button">이 기기 데이터 지우기</button>
       </div>
-      <p class="hint">로컬 모드에서 넣은 자료는 이 기기에만 있습니다. 두 사람이 같이 쓰려면 Supabase 로 연결하세요.</p>`,
+      <p class="hint">로컬 모드에서 넣은 자료는 이 기기에만 있습니다. 여러 기기에서 이어 쓰려면 Supabase 로 연결하세요.</p>`,
     foot: `<button class="btn" data-close type="button">닫기</button>`
   });
   $("#m-config").onclick = () => openConfig();
-  if ($("#m-out")) $("#m-out").onclick = async () => { await S.signOut(); location.reload(); };
+  if ($("#m-out")) $("#m-out").onclick = async () => {
+    if (S.store.mode === "cloud") await S.signOut();
+    else { S.signOutLocalAccount(); S.pinLocal(false); }
+    location.reload();
+  };
   if ($("#m-cloud")) $("#m-cloud").onclick = () => { S.pinLocal(false); location.reload(); };
   $("#m-wipe").onclick = () => confirmDelete("이 기기에 저장된 전표와 지출 전부", async () => {
-    localStorage.removeItem("jpc.cases"); localStorage.removeItem("jpc.expenses"); localStorage.removeItem("jpc.seeded");
+    S.wipeLocalData();
     location.reload();
   });
 }
