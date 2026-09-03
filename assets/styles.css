@@ -241,7 +241,14 @@ button{ cursor:pointer; }
  font-size:13px; font-weight:700; letter-spacing:0;
 }
 .stack__tab[aria-selected="true"]::after{
- content:""; position:absolute; left:14px; right:14px; bottom:0; height:3px; border-radius: var(--shape-xs) var(--shape-xs) 0 0; background: var(--plate);
+ content:""; position:absolute; left:14px; right:14px; bottom:0; height:3px; border-radius:0; background: var(--plate);
+ transform-origin:50% 50%; animation: underline-grow .32s cubic-bezier(.16,1,.3,1) both;
+}
+
+/* 밑줄 인디케이터 공통 — 가운데서 바깥쪽으로 뻗어나가는 등장 애니메이션 */
+@keyframes underline-grow{
+ from{ transform: scaleX(0); }
+ to{ transform: scaleX(1); }
 }
 
 /* ─────────── 스테이지 ─────────── */
@@ -351,8 +358,12 @@ button{ cursor:pointer; }
 .subnav::-webkit-scrollbar{ display:none; }
 .subbar{ display:flex; align-items:flex-end; gap:12px; border-bottom:1px solid var(--line); margin-bottom:14px; }
 .subbar .btn--sm{ flex:0 0 auto; margin-bottom:7px; margin-left:auto; }
-.subnav__b{ flex:0 0 auto; background:transparent; border:0; border-bottom:3px solid transparent; border-radius:0; padding:9px 4px; margin-right:18px; font-size:13.5px; font-weight:500; color: var(--ink-3); white-space:nowrap; }
-.subnav__b.is-on{ color: var(--plate); font-weight:700; border-bottom-color: var(--plate); }
+.subnav__b{ position:relative; flex:0 0 auto; background:transparent; border:0; border-radius:0; padding:9px 4px 12px; margin-right:18px; font-size:13.5px; font-weight:500; color: var(--ink-3); white-space:nowrap; transition: color .14s ease; }
+.subnav__b.is-on{ color: var(--plate); font-weight:700; }
+.subnav__b.is-on::after{
+ content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background: var(--plate);
+ transform-origin:50% 50%; animation: underline-grow .32s cubic-bezier(.16,1,.3,1) both;
+}
 
 .exps{ display:grid; gap:1px; background: var(--line-2); border:1px solid var(--line); border-radius: var(--shape-md); overflow:hidden; }
 .exp{ width:100%; text-align:left; background: var(--sheet); border:0; border-radius:0; padding:12px 14px; display:flex; align-items:center; gap:11px; transition: background-color .12s ease; }
