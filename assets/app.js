@@ -301,7 +301,22 @@ function wireChrome() {
 
   $("#btn-add-exp").onclick = () => expenseForm();
   $("#btn-add-slip-c").onclick = () => caseForm();
+  $("#btn-add-slip").onclick = () => caseForm();
   $("#btn-menu").onclick = openMenu;
+
+  $("#btn-search-toggle").onclick = () => {
+    const btn = $("#btn-search-toggle"), shell = $("#finder-shell"), finder = shell.querySelector(".finder");
+    const open = !shell.classList.contains("is-open");
+    shell.style.maxHeight = open ? finder.scrollHeight + "px" : "0px";
+    shell.classList.toggle("is-open", open);
+    btn.setAttribute("aria-expanded", String(open));
+    btn.setAttribute("aria-label", open ? "검색 닫기" : "검색 열기");
+    if (open) $("#f-company").focus({ preventScroll: true });
+  };
+  window.addEventListener("resize", () => {
+    const shell = $("#finder-shell");
+    if (shell.classList.contains("is-open")) shell.style.maxHeight = shell.querySelector(".finder").scrollHeight + "px";
+  });
 
   $("#modal").addEventListener("click", e => { if (e.target.closest("[data-close]")) closeModal(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#modal").hidden) closeModal(); });
@@ -379,12 +394,10 @@ function renderSlips() {
     };
   }
   $("#slips-tally").innerHTML = tallyHTML(C.totals(rows), rows.length);
-  $("#tally-add").onclick = () => caseForm();
 }
 
 function slipCard(c) {
-  const primary = c.items?.[0]?.type || "";
-  return `<button class="slip" type="button" data-id="${c.id}" data-type="${esc(primary)}">
+  return `<button class="slip" type="button" data-id="${c.id}">
     <span class="slip__top">
       <span class="slip__date">${C.fmtDateFull(c.date)}</span>
       ${(c.items || []).map(i => `<span class="slip__type" data-t="${esc(i.type)}">${esc(i.type)}</span>`).join("")}
@@ -429,8 +442,7 @@ function slipTable(rows) {
 }
 
 function tallyHTML(t, count) {
-  return `<div class="tally__bar"><p class="tally__h">합계 · ${count}건</p>
-      <button class="tally__add" id="tally-add" type="button">신규 전표</button></div>
+  return `<div class="tally__bar"><p class="tally__h">합계 · ${count}건</p></div>
     ${tallyRow("견적가 합", C.won(t.price))}
     ${tallyRow("미수금 합", C.won(t.unpaid), "tally__v--due")}
     ${tallyRow("실제 들어온 돈", C.won(t.received))}
